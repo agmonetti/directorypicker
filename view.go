@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// View renders the picker.
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
@@ -18,40 +19,56 @@ func (m Model) View() string {
 	if popupW > 90 {
 		popupW = 90
 	}
-	if popupW < 50 {
-		popupW = 50
+	if popupW < 30 {
+		popupW = 30
+	}
+	if popupW > m.width-2 {
+		popupW = m.width - 2
 	}
 
 	listH := m.height * 50 / 100
 	if listH > 20 {
 		listH = 20
 	}
-	if listH < 8 {
-		listH = 8
+	if listH < 3 {
+		listH = 3
+	}
+	if listH > m.height-8 {
+		listH = m.height - 8
+		if listH < 1 {
+			listH = 1
+		}
 	}
 
 	innerW := popupW - 6 // popup padding + border
 
 	// Build entry list
 	var lines []string
-	for i, entry := range m.entries {
-		cursor := "  "
-		style := normalStyle
-		if i == m.cursor {
-			cursor = symCursor
-			style = selectedStyle
+	if m.loading {
+		lines = append(lines, dimStyle.Render("  Loading..."))
+	} else if m.err != nil {
+		lines = append(lines, errorStyle.Render("Error: "+m.err.Error()))
+	} else if len(m.entries) == 0 {
+		lines = append(lines, dimStyle.Render("  (empty)"))
+	} else {
+		for i, entry := range m.entries {
+			cursor := "  "
+			style := normalStyle
+			if i == m.cursor {
+				cursor = symCursor
+				style = selectedStyle
+			}
+			icon := "▸" // dir
+			if !entry.IsDir {
+				icon = "·" // file
+			}
+			lines = append(lines, fmt.Sprintf("%s%s %s", cursor, icon, style.Render(entry.Name)))
 		}
-		icon := "▸" // dir
-		if !entry.IsDir {
-			icon = "·" // file
-		}
-		lines = append(lines, fmt.Sprintf("%s%s %s", cursor, icon, style.Render(entry.Name)))
 	}
 
 	// Sliding window
-	start := 0
 	if len(lines) > listH {
-		start = m.cursor - listH/2
+		start := m.cursor - listH/2
 		if start < 0 {
 			start = 0
 		}
@@ -66,15 +83,7 @@ func (m Model) View() string {
 		lines = lines[start:end]
 	}
 
-	var listContent string
-	if m.err != nil {
-		listContent = errorStyle.Render("Error: " + m.err.Error())
-	} else if len(m.entries) == 0 {
-		listContent = dimStyle.Render("  (empty)")
-	} else {
-		listContent = strings.Join(lines, "\n")
-	}
-
+	listContent := strings.Join(lines, "\n")
 	listPanel := dirListStyle.Width(innerW).Render(listContent)
 
 	// Breadcrumb
@@ -85,7 +94,7 @@ func (m Model) View() string {
 
 	// Help
 	var helpText string
-	if m.mode == "file" {
+	if m.mode == SelectFile {
 		helpText = "[↑/↓] Navigate  [→/←] Open/Parent  [Enter] Select file  [Esc] Cancel"
 	} else {
 		helpText = "[↑/↓] Navigate  [→/←] Open/Parent  [Enter] Select here  [Esc] Cancel"
@@ -103,6 +112,10 @@ func (m Model) View() string {
 	)
 
 	popup := popupStyle.Width(popupW).Render(content)
+
+	if m.layout == Embedded {
+		return popup
+	}
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, popup)
 }
 
@@ -131,7 +144,6 @@ func (m Model) buildBreadcrumb() string {
 		result += " > " + part
 	}
 
-	// Truncate if too long
 	if len(result) > 60 {
 		result = "Home > ... > " + parts[len(parts)-1]
 	}

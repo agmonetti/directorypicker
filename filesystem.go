@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// DirEntry represents a single filesystem entry in the picker listing.
 type DirEntry struct {
 	Name  string
 	Path  string
@@ -22,14 +23,22 @@ func readDir(path string, showFiles bool) ([]DirEntry, error) {
 	var result []DirEntry
 	for _, e := range entries {
 		name := e.Name()
-		isDir := e.IsDir()
 
-		// Skip hidden entries unless they're ".."
-		if strings.HasPrefix(name, ".") && name != ".." {
+		// Skip hidden entries
+		if strings.HasPrefix(name, ".") {
 			continue
 		}
 
-		// In dir mode, skip files; in file mode, skip directories
+		// Resolve symlinks: check the target type
+		isDir := e.IsDir()
+		if e.Type()&os.ModeSymlink != 0 {
+			info, err := os.Stat(filepath.Join(path, name))
+			if err != nil {
+				continue // broken symlink — skip
+			}
+			isDir = info.IsDir()
+		}
+
 		if isDir {
 			result = append(result, DirEntry{
 				Name:  name,
@@ -45,14 +54,9 @@ func readDir(path string, showFiles bool) ([]DirEntry, error) {
 		}
 	}
 
-	// Sort: directories first, then files, alphabetically, hidden last
+	// Sort: directories first, then files, alphabetically
 	sort.Slice(result, func(i, j int) bool {
 		a, b := result[i], result[j]
-		hi := strings.HasPrefix(a.Name, ".")
-		hj := strings.HasPrefix(b.Name, ".")
-		if hi != hj {
-			return !hi
-		}
 		if a.IsDir != b.IsDir {
 			return a.IsDir
 		}
