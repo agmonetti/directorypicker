@@ -1,55 +1,132 @@
 # directorypicker
 
-> Status: initial planning. The code has not been extracted or published yet.
+A customizable, keyboard-driven file and directory picker component for Go TUI applications built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss).
 
-`directorypicker` is a proposed file and directory picker for Go TUI applications built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). The goal is a keyboard-driven, per-instance customizable component that can be used as a dialog or inside an existing layout.
+Supports modal dialog or embedded layouts, vim navigation, custom icon sets, sorting, file extension filtering, and built-in themes.
 
-## What we plan to build
+---
 
-- Select files or directories, depending on the configured mode.
-- Navigate directories with the keyboard, including arrow keys and Vim-style bindings.
-- Show the current path, breadcrumbs, help, and errors.
-- Return results through Bubble Tea messages without coupling the component to application logic.
-- Let each consuming application adapt the layout, styles, and key bindings.
+## Features
 
-The prototype comes from a component used internally by `msTTui`. It already separates selection and cancellation through messages and does not depend on private packages from that application.
+- **Keyboard-driven navigation**: Standard arrow keys + Vim shortcuts (`h`/`j`/`k`/`l`), `Home`/`End`, `PgUp`/`PgDown`.
+- **Typed selection modes**: `SelectFile` or `SelectDirectory`.
+- **Layout styles**: `Centered` floating modal or `Embedded` inside your existing layout.
+- **Deep visual customization**: Custom borders (Rounded, Double, Thick, Normal, Hidden), colors, and custom icon sets (`DirIcon`, `FileIcon`, `Cursor`).
+- **File extension filtering**: Filter listings by extensions (e.g. `[]string{".go", ".md"}`).
+- **Configurable sorting**: Directories first, Name A→Z / Z→A, Files first, Size descending.
+- **Hidden files**: Toggle visibility at runtime with `.` or configure default on/off.
+- **Non-blocking I/O**: Directory reads run asynchronously via Bubble Tea commands (`tea.Cmd`).
 
-## Planned customization
 
-The first version prioritizes:
+---
 
-- Per-instance Lip Gloss styles.
-- A configurable keymap, with help text consistent with the active bindings.
-- Centered or embedded presentation.
-- Hidden-file visibility.
-- Configurable text and symbols, including an ASCII mode.
-- Typed file and directory selection modes.
+## Interactive Setup
 
-Local filtering, direct path entry, and cursor restoration may follow. Multi-selection, previews, file operations, and remote providers are out of the initial scope.
+The fastest way to configure and scaffold `directorypicker` into your Go project is via the interactive CLI setup:
 
-## Planned integration
+```bash
+go run github.com/agmonetti/directorypicker/cmd/setup@latest
+```
 
-The API will follow the Bubble Tea component pattern (`Init`, `Update`, `View`). The consumer handles selection/cancellation messages and decides what to do with the path—for example, upload a file or save a preferred directory. Directory reads will use Bubble Tea commands so they do not block the UI.
+The wizard guides you step-by-step through:
+1. **Selection mode**: Files or Directories
+2. **Layout**: Centered modal popup or embedded inline
+3. **Visual design**: Color palette (Tokyo Night, Catppuccin, Dracula, Cyberpunk, Nord, Matrix, Azure), border style, icon sets (Emojis, Nerd Font, Modern, Classic), and active row highlight (Banner, Text, Underline)
+4. **Filtering & Sorting**: File extension filtering and configurable sort order
+5. **Keybindings**: Vim-style shortcuts (`h`/`j`/`k`/`l`)
+6. **Live Preview**: Interactive terminal test before saving
+7. **Code Generation**: Generates a ready-to-run `main.go` or a drop-in helper function
 
-The API and installation example will be published after the module import path, minimum Go/Bubble Tea versions, and first working release are confirmed.
+---
 
-## Design and integration guides
+## Installation
 
-- [PLAN.md](PLAN.md): scope, findings, phases, open decisions, and acceptance criteria.
-- [Installation and publishing](docs/INSTALLATION.md): Go module, `go get`, versions, and release checklist.
-- [Customization](docs/CUSTOMIZATION.md): proposed API, styles, keymap, modes, and behavior.
-- [Integration](docs/INTEGRATION.md): Bubble Tea lifecycle, messages, resizing, commands, and tests.
-- [RUNBOOK.md](RUNBOOK.md): session kickoff prompt, current status, and the next task.
+```bash
+go get github.com/agmonetti/directorypicker
+```
 
-The planned distribution is **as a Go module only**. There will be no npm package: npm does not make a Bubble Tea library importable from Go. An npm binary wrapper or a JavaScript port would be a separate product and is out of scope.
+---
 
-## Status and next steps
+## Basic Usage
 
-1. Confirm the module name/import path and compare the scope with `bubbles/filepicker`.
-2. Extract the component and fix its selection, empty-list, and small-terminal edge cases.
-3. Add tests and a Bubble Tea example covering messages and resizing.
-4. Implement essential customization and prepare a tagged release.
+```go
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/agmonetti/directorypicker"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+type appModel struct {
+	picker   directorypicker.Model
+	selected string
+}
+
+func (m appModel) Init() tea.Cmd {
+	return m.picker.Init()
+}
+
+func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case directorypicker.SelectedMsg:
+		m.selected = msg.Path
+		return m, tea.Quit
+	case directorypicker.CancelledMsg:
+		m.selected = "(cancelled)"
+		return m, tea.Quit
+	}
+
+	var cmd tea.Cmd
+	m.picker, cmd = m.picker.Update(msg)
+	return m, cmd
+}
+
+func (m appModel) View() string {
+	return m.picker.View()
+}
+
+func main() {
+	picker := directorypicker.New(directorypicker.Options{
+		Title:       "Select a file",
+		InitialPath: ".",
+		Mode:        directorypicker.SelectFile,
+		Layout:      directorypicker.Centered,
+		Styles:      directorypicker.TokyoNightStyles(),
+	})
+
+	p := tea.NewProgram(appModel{picker: picker}, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+---
+
+
+## Examples
+
+| **Tokyo Night** (Modern Icons & Banner) | **Cyberpunk Neon** (Nerd Font & Thick Border) |
+|:---:|:---:|
+| <img src="docs/assets/tokyonight.png" width="420" alt="Tokyo Night Theme"> | <img src="docs/assets/cyberpunk.png" width="420" alt="Cyberpunk Neon Theme"> |
+| **Catppuccin Mocha** (Folder Mode & Minimal) | **Matrix Green** (Retro Phosphor Terminal) |
+| <img src="docs/assets/catppuccin.png" width="420" alt="Catppuccin Mocha Theme"> | <img src="docs/assets/matrix.png" width="420" alt="Matrix Green Theme"> |
+
+---
+
+## Guides & Documentation
+
+- [Customization Guide](docs/CUSTOMIZATION.md): Detailed styling, custom keymaps, and options.
+- [Integration Guide](docs/INTEGRATION.md): Bubble Tea lifecycle, messages, resizing, and embedding.
+- [Installation Guide](docs/INSTALLATION.md): Requirements and release checklists.
+- [Design Plan](PLAN.md): Architecture decisions and specification.
+
+---
 
 ## License
 
-MIT. The code will be extracted from another repository owned by the same author, so the source repository's license does not prevent publishing it under MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE) © [Agustin Monetti](https://github.com/agmonetti)
