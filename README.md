@@ -123,7 +123,6 @@ func main() {
 - [Customization Guide](docs/CUSTOMIZATION.md): Detailed styling, custom keymaps, and options.
 - [Integration Guide](docs/INTEGRATION.md): Bubble Tea lifecycle, messages, resizing, and embedding.
 - [Installation Guide](docs/INSTALLATION.md): Requirements and release checklists.
-- [Design Plan](PLAN.md): Architecture decisions and specification.
 
 ---
 
