@@ -12,9 +12,10 @@ type DirEntry struct {
 	Name  string
 	Path  string
 	IsDir bool
+	Size  int64 // used for SortBySizeDesc; 0 for directories
 }
 
-func readDir(path string, showFiles bool) ([]DirEntry, error) {
+func readDir(path string, showFiles bool, showHidden bool, allowedExts []string, sortOrder SortOrder) ([]DirEntry, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -24,19 +25,27 @@ func readDir(path string, showFiles bool) ([]DirEntry, error) {
 	for _, e := range entries {
 		name := e.Name()
 
-		// Skip hidden entries
-		if strings.HasPrefix(name, ".") {
+		// Skip hidden entries if not enabled
+		if !showHidden && strings.HasPrefix(name, ".") {
 			continue
 		}
 
 		// Resolve symlinks: check the target type
 		isDir := e.IsDir()
+		var fileSize int64
 		if e.Type()&os.ModeSymlink != 0 {
 			info, err := os.Stat(filepath.Join(path, name))
 			if err != nil {
 				continue // broken symlink — skip
 			}
 			isDir = info.IsDir()
+			if !isDir {
+				fileSize = info.Size()
+			}
+		} else if !isDir {
+			if info, err := e.Info(); err == nil {
+				fileSize = info.Size()
+			}
 		}
 
 		if isDir {
@@ -46,25 +55,62 @@ func readDir(path string, showFiles bool) ([]DirEntry, error) {
 				IsDir: true,
 			})
 		} else if showFiles {
+			// Apply extension filter when a non-empty, non-wildcard list is provided
+			if len(allowedExts) > 0 && allowedExts[0] != "*" {
+				ext := strings.ToLower(filepath.Ext(name))
+				matched := false
+				for _, allowed := range allowedExts {
+					if ext == strings.ToLower(allowed) {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					continue
+				}
+			}
 			result = append(result, DirEntry{
 				Name:  name,
 				Path:  filepath.Join(path, name),
 				IsDir: false,
+				Size:  fileSize,
 			})
 		}
 	}
 
-	// Sort: directories first, then files, alphabetically
-	sort.Slice(result, func(i, j int) bool {
+	// Sort according to SortOrder
+	sort.SliceStable(result, func(i, j int) bool {
 		a, b := result[i], result[j]
-		if a.IsDir != b.IsDir {
-			return a.IsDir
+		switch sortOrder {
+		case SortByNameAsc:
+			return strings.ToLower(a.Name) < strings.ToLower(b.Name)
+		case SortByNameDesc:
+			return strings.ToLower(a.Name) > strings.ToLower(b.Name)
+		case SortFilesFirst:
+			if a.IsDir != b.IsDir {
+				return !a.IsDir // files first
+			}
+			return strings.ToLower(a.Name) < strings.ToLower(b.Name)
+		case SortBySizeDesc:
+			if a.IsDir != b.IsDir {
+				return a.IsDir // keep dirs at top
+			}
+			if a.Size != b.Size {
+				return a.Size > b.Size
+			}
+			return strings.ToLower(a.Name) < strings.ToLower(b.Name)
+		default: // SortDirsFirst
+			if a.IsDir != b.IsDir {
+				return a.IsDir
+			}
+			return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 		}
-		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 	})
 
 	return result, nil
 }
+
+
 
 func parentPath(path string) string {
 	parent := filepath.Dir(path)

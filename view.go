@@ -27,7 +27,10 @@ func (m Model) View() string {
 	}
 
 	listH := m.height * 50 / 100
-	if listH > 20 {
+	if m.maxListHeight > 0 {
+		listH = m.maxListHeight
+	}
+	if listH > 20 && m.maxListHeight == 0 {
 		listH = 20
 	}
 	if listH < 3 {
@@ -42,27 +45,58 @@ func (m Model) View() string {
 
 	innerW := popupW - 6 // popup padding + border
 
+	// Cursor and icon setup
+	cursorSym := m.styles.Cursor
+	if cursorSym == "" {
+		cursorSym = symCursor
+	}
+	if !strings.HasSuffix(cursorSym, " ") {
+		cursorSym += " "
+	}
+	cursorPad := strings.Repeat(" ", lipgloss.Width(cursorSym))
+
+	dirIcon := m.styles.DirIcon
+	if dirIcon == "" {
+		dirIcon = "▸"
+	}
+	if !strings.HasSuffix(dirIcon, " ") {
+		dirIcon += " "
+	}
+
+	fileIcon := m.styles.FileIcon
+	if fileIcon == "" {
+		fileIcon = "·"
+	}
+	if !strings.HasSuffix(fileIcon, " ") {
+		fileIcon += " "
+	}
+
 	// Build entry list
 	var lines []string
 	if m.loading {
-		lines = append(lines, dimStyle.Render("  Loading..."))
+		lines = append(lines, m.styles.Dim.Render("  Loading..."))
 	} else if m.err != nil {
-		lines = append(lines, errorStyle.Render("Error: "+m.err.Error()))
+		lines = append(lines, m.styles.Error.Render("Error: "+m.err.Error()))
 	} else if len(m.entries) == 0 {
-		lines = append(lines, dimStyle.Render("  (empty)"))
+		lines = append(lines, m.styles.Dim.Render("  (empty)"))
 	} else {
+		hasBg := m.styles.Selected.GetBackground() != (lipgloss.NoColor{})
 		for i, entry := range m.entries {
-			cursor := "  "
-			style := normalStyle
-			if i == m.cursor {
-				cursor = symCursor
-				style = selectedStyle
-			}
-			icon := "▸" // dir
+			icon := dirIcon
 			if !entry.IsDir {
-				icon = "·" // file
+				icon = fileIcon
 			}
-			lines = append(lines, fmt.Sprintf("%s%s %s", cursor, icon, style.Render(entry.Name)))
+
+			if i == m.cursor {
+				if hasBg {
+					lineText := fmt.Sprintf("%s%s%s", cursorSym, icon, entry.Name)
+					lines = append(lines, m.styles.Selected.Render(lineText))
+				} else {
+					lines = append(lines, fmt.Sprintf("%s%s%s", cursorSym, icon, m.styles.Selected.Render(entry.Name)))
+				}
+			} else {
+				lines = append(lines, fmt.Sprintf("%s%s%s", cursorPad, icon, m.styles.Normal.Render(entry.Name)))
+			}
 		}
 	}
 
@@ -84,25 +118,25 @@ func (m Model) View() string {
 	}
 
 	listContent := strings.Join(lines, "\n")
-	listPanel := dirListStyle.Width(innerW).Render(listContent)
+	listPanel := m.styles.DirList.Width(innerW).Render(listContent)
 
 	// Breadcrumb
-	breadcrumb := breadcrumbStyle.Render(m.buildBreadcrumb())
+	breadcrumb := m.styles.Breadcrumb.Render(m.buildBreadcrumb())
 
 	// Current path
-	currentPath := pathStyle.Render("Current: " + m.currentPath)
+	currentPath := m.styles.Path.Render("Current: " + m.currentPath)
 
 	// Help
 	var helpText string
 	if m.mode == SelectFile {
-		helpText = "[↑/↓] Navigate  [→/←] Open/Parent  [Enter] Select file  [Esc] Cancel"
+		helpText = "[↑/↓] Navigate  [→/←] Open/Parent  [Enter] Select file  [.] Hidden  [Esc] Cancel"
 	} else {
-		helpText = "[↑/↓] Navigate  [→/←] Open/Parent  [Enter] Select here  [Esc] Cancel"
+		helpText = "[↑/↓] Navigate  [→/←] Open/Parent  [Enter] Select here  [.] Hidden  [Esc] Cancel"
 	}
-	help := helpStyle.Render(helpText)
+	help := m.styles.Help.Render(helpText)
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render(m.Title),
+		m.styles.Title.Render(m.Title),
 		listPanel,
 		"",
 		breadcrumb,
@@ -111,7 +145,7 @@ func (m Model) View() string {
 		help,
 	)
 
-	popup := popupStyle.Width(popupW).Render(content)
+	popup := m.styles.Popup.Width(popupW).Render(content)
 
 	if m.layout == Embedded {
 		return popup

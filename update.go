@@ -32,7 +32,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.loading {
 			// Only allow cancel while loading
-			if msg.String() == "esc" {
+			if keyMatches(msg.String(), m.keyMap.Cancel) {
 				return m, func() tea.Msg { return CancelledMsg{} }
 			}
 			return m, nil
@@ -43,49 +43,57 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	key := msg.String()
+
+	switch {
+	case keyMatches(key, m.keyMap.Cancel):
 		return m, func() tea.Msg { return CancelledMsg{} }
 
-	case "enter":
+	case keyMatches(key, m.keyMap.Enter):
 		return m.handleEnter()
 
-	case "up", "k":
+	case keyMatches(key, m.keyMap.ToggleHidden):
+		m.showHidden = !m.showHidden
+		m.loading = true
+		m.readGen++
+		return m, m.readDirCmd()
+
+	case keyMatches(key, m.keyMap.Up):
 		if m.cursor > 0 {
 			m.cursor--
 		}
 
-	case "down", "j":
+	case keyMatches(key, m.keyMap.Down):
 		if len(m.entries) > 0 && m.cursor < len(m.entries)-1 {
 			m.cursor++
 		}
 
-	case "right", "l":
+	case keyMatches(key, m.keyMap.Right):
 		if len(m.entries) > 0 && m.entries[m.cursor].IsDir {
 			return m.navigateTo(m.entries[m.cursor].Path)
 		}
 
-	case "left", "h":
+	case keyMatches(key, m.keyMap.Left):
 		parent := parentPath(m.currentPath)
 		if parent != m.currentPath {
 			return m.navigateTo(parent)
 		}
 
-	case "home", "g":
+	case keyMatches(key, m.keyMap.Home):
 		m.cursor = 0
 
-	case "end", "G":
+	case keyMatches(key, m.keyMap.End):
 		if len(m.entries) > 0 {
 			m.cursor = len(m.entries) - 1
 		}
 
-	case "pgup":
+	case keyMatches(key, m.keyMap.PageUp):
 		m.cursor -= 10
 		if m.cursor < 0 {
 			m.cursor = 0
 		}
 
-	case "pgdown":
+	case keyMatches(key, m.keyMap.PageDown):
 		if len(m.entries) == 0 {
 			m.cursor = 0
 		} else {

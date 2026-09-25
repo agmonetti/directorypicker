@@ -16,6 +16,17 @@ const (
 	Embedded
 )
 
+// SortOrder controls how entries are sorted in the picker listing.
+type SortOrder uint8
+
+const (
+	SortDirsFirst  SortOrder = iota // Directories first, then files A→Z (default)
+	SortByNameAsc                   // All entries A→Z
+	SortByNameDesc                  // All entries Z→A
+	SortFilesFirst                  // Files first, then directories A→Z
+	SortBySizeDesc                  // Largest files first (directories grouped at top)
+)
+
 // SelectedMsg is emitted when the user selects a path.
 type SelectedMsg struct {
 	Path string
@@ -26,12 +37,18 @@ type CancelledMsg struct{}
 
 // Options configures a new picker instance.
 type Options struct {
-	Title       string
-	InitialPath string
-	Mode        Mode
-	Layout      Layout
-	Width       int
-	Height      int
+	Title             string
+	InitialPath       string
+	Mode              Mode
+	Layout            Layout
+	Width             int
+	Height            int
+	Styles            Styles
+	KeyMap            KeyMap
+	ShowHidden        bool
+	MaxListHeight     int      // 0 = auto (uses 50% of terminal height, capped at 20)
+	AllowedExtensions []string // nil or empty = all files; e.g. []string{".go", ".md"}
+	SortOrder         SortOrder
 }
 
 // Internal messages for async directory reads.
