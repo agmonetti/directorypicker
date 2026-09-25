@@ -1,0 +1,21 @@
+name: "Nord Frost"
+colors:
+  accent: "#88c0d0"
+  text: "#eceff4"
+  muted: "#4c566a"
+  dim: "#3b4252"
+  border: "#434c5e"
+  border_focus: "#88c0d0"
+  error: "#bf616a"
+borders:
+  popup: "rounded"
+  dir_list: "rounded"
+icons:
+  cursor: "❯ "
+  dir_icon: "📁 "
+  file_icon: "📄 "
+selection:
+  foreground: "#2e3440"
+  background: "#88c0d0"
+  bold: true
+  underline: false

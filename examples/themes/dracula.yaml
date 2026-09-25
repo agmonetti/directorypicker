@@ -1,0 +1,21 @@
+name: "Dracula"
+colors:
+  accent: "#ff79c6"
+  text: "#f8f8f2"
+  muted: "#6272a4"
+  dim: "#44475a"
+  border: "#6272a4"
+  border_focus: "#ff79c6"
+  error: "#ff5555"
+borders:
+  popup: "double"
+  dir_list: "rounded"
+icons:
+  cursor: "❯ "
+  dir_icon: "📁 "
+  file_icon: "📄 "
+selection:
+  foreground: "#282a36"
+  background: "#bd93f9"
+  bold: true
+  underline: false

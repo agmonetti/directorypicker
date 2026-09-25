@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -46,6 +47,15 @@ var (
 			Bold(true).
 			Foreground(colorOk)
 
+	styleErr = lipgloss.NewStyle().
+			Foreground(colorErr)
+
+	styleWarn = lipgloss.NewStyle().
+			Foreground(colorWarn)
+
+	styleDim = lipgloss.NewStyle().
+			Foreground(colorDim)
+
 	styleCmd = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("14"))
 )
@@ -88,7 +98,23 @@ func runStep(n, total int, title string, field huh.Field) {
 // ── main ─────────────────────────────────────────────────────────────────────
 
 func main() {
+	themeFlag := flag.String("theme", "", "Path to custom YAML theme file to import")
+	flag.Parse()
+
 	printHeader()
+
+	var customThemeStyles directorypicker.Styles
+	var customThemePath string
+	if *themeFlag != "" {
+		st, err := directorypicker.LoadThemeFile(*themeFlag)
+		if err != nil {
+			fmt.Println(styleErr.Render(fmt.Sprintf("  Error loading theme from --theme %q: %v", *themeFlag, err)))
+			os.Exit(1)
+		}
+		customThemeStyles = st
+		customThemePath = *themeFlag
+		fmt.Println(styleSuccess.Render(fmt.Sprintf("  ✔ Loaded custom theme from --theme %q\n", *themeFlag)))
+	}
 
 	// Initial step count (16 steps in file mode, 15 in dir mode)
 	step := 1
@@ -137,33 +163,68 @@ func main() {
 
 	// ── Step 3: Color palette ────────────────────────────────────────────────
 	var paletteChoice string = "tokyonight"
+	if customThemePath != "" {
+		paletteChoice = "custom_yaml"
+	}
+
+	paletteOptions := []huh.Option[string]{
+		huh.NewOption("Tokyo Night     — deep night blue, purple & cyan highlights", "tokyonight"),
+		huh.NewOption("Catppuccin Mocha — soft pastel dark aesthetic (mauve & sky)", "catppuccin"),
+		huh.NewOption("Dracula          — gothic dark with vivid purple, pink & green", "dracula"),
+		huh.NewOption("Cyberpunk Neon   — electric neon yellow, hot pink & cyan", "cyberpunk"),
+		huh.NewOption("Nord Frost       — arctic cool icy cyan & polar blues", "nord"),
+		huh.NewOption("Matrix Green     — retro phosphor green terminal look", "matrix"),
+		huh.NewOption("Azure Classic    — Microsoft Azure blue (#0078D4)", "azure"),
+		huh.NewOption("Monochrome       — low-contrast subtle grayscale", "minimal"),
+		huh.NewOption("Custom YAML      — import external .yaml theme file", "custom_yaml"),
+	}
+
 	runStep(step, totalSteps, "Color palette",
 		huh.NewSelect[string]().
 			Title("Which color palette do you prefer?").
 			Description("Sets the base colors for borders, text, breadcrumbs, and highlights.").
-			Options(
-				huh.NewOption("Tokyo Night     — deep night blue, purple & cyan highlights", "tokyonight"),
-				huh.NewOption("Catppuccin Mocha — soft pastel dark aesthetic (mauve & sky)", "catppuccin"),
-				huh.NewOption("Dracula          — gothic dark with vivid purple, pink & green", "dracula"),
-				huh.NewOption("Cyberpunk Neon   — electric neon yellow, hot pink & cyan", "cyberpunk"),
-				huh.NewOption("Nord Frost       — arctic cool icy cyan & polar blues", "nord"),
-				huh.NewOption("Matrix Green     — retro phosphor green terminal look", "matrix"),
-				huh.NewOption("Azure Classic    — Microsoft Azure blue (#0078D4)", "azure"),
-				huh.NewOption("Monochrome       — low-contrast subtle grayscale", "minimal"),
-			).
+			Options(paletteOptions...).
 			Value(&paletteChoice),
 	)
 	step++
 
+	if paletteChoice == "custom_yaml" && customThemePath == "" {
+		for {
+			var pathInput string
+			runStep(step, totalSteps, "Theme file path",
+				huh.NewInput().
+					Title("Enter the path to your YAML theme file").
+					Description("Example: examples/themes/nord.yaml or /path/to/theme.yaml").
+					Placeholder("examples/themes/nord.yaml").
+					Value(&pathInput),
+			)
+			pathInput = strings.TrimSpace(pathInput)
+			if pathInput == "" {
+				fmt.Println(styleWarn.Render("  Please enter a non-empty file path."))
+				continue
+			}
+			st, err := directorypicker.LoadThemeFile(pathInput)
+			if err != nil {
+				fmt.Println(styleErr.Render(fmt.Sprintf("  Validation error: %v", err)))
+				fmt.Println(styleDim.Render("  Please verify your theme file syntax or choose a different file."))
+				continue
+			}
+			customThemeStyles = st
+			customThemePath = pathInput
+			break
+		}
+	}
+
 	paletteNames := map[string]string{
-		"tokyonight": "Tokyo Night (night blue, purple & cyan)",
-		"catppuccin": "Catppuccin Mocha (mauve & sky)",
-		"dracula":    "Dracula (purple, pink & green)",
-		"cyberpunk":  "Cyberpunk Neon (electric yellow, pink & cyan)",
-		"nord":       "Nord Frost (icy cyan & polar blues)",
-		"matrix":     "Matrix Green (retro phosphor terminal)",
-		"azure":      "Azure Classic (Microsoft blue)",
-		"minimal":    "Monochrome (subtle grayscale)",
+		"tokyonight":  "Tokyo Night (night blue, purple & cyan)",
+		"catppuccin":  "Catppuccin Mocha (mauve & sky)",
+		"dracula":     "Dracula (purple, pink & green)",
+		"cyberpunk":   "Cyberpunk Neon (electric yellow, pink & cyan)",
+		"nord":        "Nord Frost (icy cyan & polar blues)",
+		"matrix":      "Matrix Green (retro phosphor terminal)",
+		"azure":       "Azure Classic (Microsoft blue)",
+		"minimal":     "Monochrome (subtle grayscale)",
+		"custom_yaml": fmt.Sprintf("Custom YAML (%s)", customThemePath),
 	}
 	printConfirmed("Color palette", paletteNames[paletteChoice])
 
@@ -398,7 +459,7 @@ func main() {
 	printConfirmed("Sort order", sortLabels[sortOrderChoice])
 
 	// ── Assemble styles from choices ─────────────────────────────────────────
-	pickerStyles, stylesCodeBlock := assembleStyles(paletteChoice, borderChoice, iconChoice, highlightChoice)
+	pickerStyles, stylesCodeBlock := assembleStyles(paletteChoice, borderChoice, iconChoice, highlightChoice, customThemeStyles, customThemePath)
 
 	// ── Step 14: Live preview ─────────────────────────────────────────────────
 	var wantPreview bool = true
@@ -577,7 +638,18 @@ func main() {
 
 // ── style assembler ───────────────────────────────────────────────────────────
 
-func assembleStyles(palette, borderChoice, iconChoice, highlightChoice string) (directorypicker.Styles, string) {
+func assembleStyles(palette, borderChoice, iconChoice, highlightChoice string, customStyles directorypicker.Styles, customThemePath string) (directorypicker.Styles, string) {
+	if palette == "custom_yaml" {
+		codeBlock := fmt.Sprintf(`func buildCustomStyles() directorypicker.Styles {
+	styles, err := directorypicker.LoadThemeFile(%q)
+	if err != nil {
+		return directorypicker.DefaultStyles()
+	}
+	return styles
+}()`, customThemePath)
+		return customStyles, codeBlock
+	}
+
 	var s directorypicker.Styles
 	var baseCall string
 

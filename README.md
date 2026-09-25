@@ -107,6 +107,63 @@ func main() {
 
 ---
 
+## Custom Themes via YAML
+
+You can define and distribute custom themes as external `.yaml` files:
+
+```yaml
+name: "Nord Frost"
+colors:
+  accent: "#88c0d0"
+  text: "#eceff4"
+  muted: "#4c566a"
+  dim: "#3b4252"
+  border: "#434c5e"
+  border_focus: "#88c0d0"
+  error: "#bf616a"
+borders:
+  popup: "rounded"       # rounded, double, thick, normal, hidden, none
+  dir_list: "rounded"
+icons:
+  cursor: "❯ "
+  dir_icon: "📁 "
+  file_icon: "📄 "
+selection:
+  foreground: "#2e3440"
+  background: "#88c0d0"
+  bold: true
+  underline: false
+```
+
+### Loading at Runtime
+
+```go
+styles, err := directorypicker.LoadThemeFile("path/to/theme.yaml")
+if err != nil {
+    log.Fatalf("Invalid theme: %v", err)
+}
+
+picker := directorypicker.New(directorypicker.Options{
+    Styles: styles,
+    // ...
+})
+```
+
+Theme files are strictly validated upon load: missing required fields, invalid hex codes, or unrecognized borders return descriptive error messages.
+
+Reference themes are provided in [`examples/themes/`](examples/themes/):
+- [`examples/themes/dracula.yaml`](examples/themes/dracula.yaml)
+- [`examples/themes/catppuccin.yaml`](examples/themes/catppuccin.yaml)
+- [`examples/themes/nord.yaml`](examples/themes/nord.yaml)
+
+You can also pass a custom theme directly to the interactive setup wizard:
+
+```bash
+go run github.com/agmonetti/directorypicker/cmd/setup --theme examples/themes/nord.yaml
+```
+
+---
+
 
 ## Examples
 
